@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+</head>
+<body>
+  {{#if attachment}}
+  <h2>Dear Sir/Madam,</h2>
+  <p class="intro">Audit Log report for the {{department}} Department this week.</b> </p> <br>
+  {{/if}}
+  {{#if email}}
+  <h2>Hello {{name}}!</h2>
+  <p class="intro">We're glad that you joined our Company.</b>. </p> <br>
+  <h3>Role : {{role}}</h3>
+  <h3>Department : {{department}}</h3>
+  <h3>Here are your <strong>Login credentials</strong> :- </h3>
+  <h4>Username : {{email}}</h4>
+  <h4>Password : {{password}}</h4> </p><br>
+  {{/if}}
+  {{#if attachment}}
+  <p>Find the document attached below : </p>
+  {{/if}}
+</body>
+</html>
