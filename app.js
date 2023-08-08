@@ -2,11 +2,14 @@ require("express-async-errors");
 require("dotenv").config();
 const cookieParser = require("cookie-parser");
 
+const cors = require("cors");
+
 const express = require("express");
 const app = express();
 
 const connectToDatabase = require("./database/connection");
 const { default: mongoose } = require("mongoose");
+const { reportGenerator } = require("./utils/reportService/generateReports");
 
 // Importing Routers
 const userRoute = require("./routes/userRoute");
@@ -25,6 +28,14 @@ const {
   authenticateUser,
   authorizePermissions,
 } = require("./middleware/authentication");
+
+// Cors
+app.use(
+  cors({
+    origin: process.env.URL,
+    credentials: true,
+  })
+);
 
 // Middleware to parse json, url, and cookies
 app.use(express.json());
@@ -59,6 +70,8 @@ async function startServer() {
     app.listen(process.env.PORT, () => {
       console.log(`Server listening on port ${process.env.PORT}`);
     });
+
+    // await reportGenerator();
   } catch (error) {
     console.log("Error -- ", error);
 
