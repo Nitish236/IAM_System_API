@@ -83,43 +83,35 @@ const login = async (req, res) => {
     throw new BadRequestError("Username or password is incorrect");
   }
 
-  // Get any tokens if present
-  const userAccessToken = req.cookies.accessToken;
-  const userRefreshToken = req.cookies.refreshToken;
+  // Generate the Access Token
+  const accessToken = await user.createAccessToken();
 
-  if (!userAccessToken || (userAccessToken && !userRefreshToken)) {
-    // Generate the Access Token
-    const accessToken = await user.createAccessToken();
+  // Set the cookie
+  res.cookie("accessToken", accessToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+  });
 
-    // Set the cookie
-    res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-    });
+  // Remove old refresh token
+  await Session.deleteOne({ empId: user._id });
+
+  // Generate the Refresh Token
+  const refreshToken = await user.createRefreshToken();
+
+  // Save the refresh token
+  const session = await Session.create({ empId: user._id, refreshToken });
+
+  if (!session._doc._id) {
+    throw new CustomAPIError("Server error Re-try");
   }
 
-  if (!userRefreshToken) {
-    // Remove old refresh token
-    await Session.deleteOne({ empId: user._id });
-
-    // Generate the Refresh Token
-    const refreshToken = await user.createRefreshToken();
-
-    // Save the refresh token
-    const session = await Session.create({ empId: user._id, refreshToken });
-
-    if (!session._doc._id) {
-      throw new CustomAPIError("Server error Re-try");
-    }
-
-    // Set the cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-    });
-  }
+  // Set the cookie
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+  });
 
   // Send the Tokens
   res.status(StatusCodes.OK).json({
@@ -160,6 +152,10 @@ const refresh = async (req, res) => {
   try {
     // Verify the token
     const payload = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    if (payload.exp < Date.now()) {
+      throw new BadRequestError("Refresh token is expired");
+    }
 
     // Find the session
     const session = await Session.findOne(
