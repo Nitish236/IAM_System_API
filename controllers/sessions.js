@@ -63,7 +63,7 @@ const projectionForResetToken = { email: 0, resetToken: 0 };
 const login = async (req, res) => {
   // Retrieve the username and password
   const { username, password } = req.body;
-  //console.log(username + " - " + password);
+
   // Check if both the fields are not empty
   if (!username || !password) {
     throw new BadRequestError("Username and password cannot be empty");
@@ -83,30 +83,45 @@ const login = async (req, res) => {
     throw new BadRequestError("Username or password is incorrect");
   }
 
-  // Generate the Access Token and Refresh Token
-  const accessToken = await user.createAccessToken();
-  const refreshToken = await user.createRefreshToken();
+  // Get any tokens if present
+  const userAccessToken = req.cookies.accessToken;
+  const userRefreshToken = req.cookies.refreshToken;
 
-  // Save the refresh token
-  const session = await Session.create({ empId: user._id, refreshToken });
+  if (!userAccessToken || (userAccessToken && !userRefreshToken)) {
+    // Generate the Access Token
+    const accessToken = await user.createAccessToken();
 
-  if (!session) {
-    throw new CustomAPIError("Server error Re-try");
+    // Set the cookie
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+    });
   }
 
-  // Set the cookie
-  res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-  });
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-  });
+  if (!userRefreshToken) {
+    // Remove old refresh token
+    await Session.deleteOne({ empId: user._id });
 
-  // Send the Access Token
+    // Generate the Refresh Token
+    const refreshToken = await user.createRefreshToken();
+
+    // Save the refresh token
+    const session = await Session.create({ empId: user._id, refreshToken });
+
+    if (!session._doc._id) {
+      throw new CustomAPIError("Server error Re-try");
+    }
+
+    // Set the cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+    });
+  }
+
+  // Send the Tokens
   res.status(StatusCodes.OK).json({
     msg: "Login Successfull",
     user: {
@@ -119,9 +134,6 @@ const login = async (req, res) => {
 //                                  Function to Log out the Employee
 
 const logout = async (req, res) => {
-  // Get the Tokens
-  const refreshToken = req.cookies.refreshToken;
-
   // Remove the refresh token from the database
   await Session.deleteOne({ empId: req.user.empId });
 
@@ -193,7 +205,7 @@ const forgotPassword = async (req, res) => {
   const email = req.body.email;
 
   // Check if Employee exists or not
-  const user = await User.find({ email });
+  const user = await User.findOne({ email });
 
   if (!user) {
     throw new NotFoundError("No such employee exists");
@@ -245,7 +257,7 @@ const resetPassword = async (req, res) => {
   );
 
   if (!reset) {
-    throw new NotFoundError("Invalid Reset Token");
+    throw new NotFoundError("Invalid Reset Token or employee not found");
   }
 
   if (reset.expiry < Date.now()) {
@@ -261,10 +273,11 @@ const resetPassword = async (req, res) => {
   await user.changePassword(password);
 
   // Delete old session of the user containing old password, (refresh token)
-  await Session.deleteMany({ empId: user._id });
+  await Session.deleteOne({ empId: user._id });
 
   // Delete all reset token for this user
   await ResetToken.deleteMany({ email });
+  // There can be at max 2 document of one user, one that we dicuss below and other one is the new one
   /* We are doing this, in case a user generates the request for change password
      but in future does not change it and the time expired. So whenever he changes
      the password in future then all reset's should be distroyed at that time */
