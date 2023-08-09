@@ -75,11 +75,10 @@ async function startServer() {
   } catch (error) {
     console.log("Error -- ", error);
 
-    mongoose.connection.close(() => {
-      console.log("Database Connection is closed");
-      console.log("Server is shutting down");
-      process.exit();
-    });
+    await mongoose.connection.close();
+    console.log("Database Connection is closed");
+    console.log("Server is shutting down");
+    process.exit();
   }
 }
 

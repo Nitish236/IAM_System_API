@@ -7,11 +7,11 @@
 <body>
   {{#if attachment}}
   <h2>Dear Sir/Madam,</h2>
-  <p class="intro">Audit Log report for the {{department}} Department this week.</b> </p> <br>
+  <p class="intro">Audit Log report for the {{department}} Department this week.</p> <br>
   {{/if}}
   {{#if email}}
   <h2>Hello {{name}}!</h2>
-  <p class="intro">We're glad that you joined our Company.</b>. </p> <br>
+  <p class="intro">We're glad that you joined our Company. </p> <br>
   <h3>Role : {{role}}</h3>
   <h3>Department : {{department}}</h3>
   <h3>Here are your <strong>Login credentials</strong> :- </h3>
@@ -20,6 +20,12 @@
   {{/if}}
   {{#if attachment}}
   <p>Find the document attached below : </p>
+  {{/if}}
+  {{#if resetPassword}}
+  <h2>Dear Employee,</h2>
+  <p class="intro">Click on the below link to Reset your password.</p> <br>
+  <p>Link: - {{resetLink}}</p>
+  <p>The link will remain valid only for 7 hours</p>
   {{/if}}
 </body>
 </html>

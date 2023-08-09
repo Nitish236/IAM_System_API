@@ -78,9 +78,31 @@ const sendEmailWithAttachement = async (user) => {
   });
 };
 
+// Send Email (To Reset Password)
+
+const sendEmailForResetPassword = async (user) => {
+  let emailOptions = {
+    from: process.env.IAM_MAIL,
+    to: user.email,
+    subject: "Reset Password",
+    template: "email",
+    context: {
+      resetLink: user.resetLink,
+      resetPassword: true,
+    },
+  };
+
+  transporter.sendMail(emailOptions, async (error) => {
+    if (error) {
+      throw new MailError("Something wrong happened while Sending Mail");
+    }
+  });
+};
+
 // Export Functionality
 
 module.exports = {
   sendEmail,
   sendEmailWithAttachement,
+  sendEmailForResetPassword,
 };

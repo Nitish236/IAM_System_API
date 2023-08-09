@@ -8,10 +8,13 @@ const {
   CustomAPIError,
 } = require("../errors/allErr");
 const jwt = require("jsonwebtoken");
+const uuid = require("uuid");
 
 // Model
 const User = require("../models/userModel");
 const Session = require("../models/sessionModel");
+const ResetToken = require("../models/passwordToken");
+const { sendEmailForResetPassword } = require("../utils/mailService/email");
 
 // Projections For Queries
 // User
@@ -52,6 +55,8 @@ const projectionForSession = {
   updatedAt: 0,
   __v: 0,
 };
+// Reset
+const projectionForResetToken = { email: 0, resetToken: 0 };
 
 //                                  Function to Log In the Employee
 
@@ -111,7 +116,7 @@ const login = async (req, res) => {
   });
 };
 
-//                                Function to Log out the Employee
+//                                  Function to Log out the Employee
 
 const logout = async (req, res) => {
   // Get the Tokens
@@ -181,7 +186,96 @@ const refresh = async (req, res) => {
   }
 };
 
-//                                    Function to Fetch the details of the Logged In Employee
+//                                  Function to generate token for forgot password
+
+const forgotPassword = async (req, res) => {
+  // Get the email
+  const email = req.body.email;
+
+  // Check if Employee exists or not
+  const user = await User.find({ email });
+
+  if (!user) {
+    throw new NotFoundError("No such employee exists");
+  }
+
+  // Generate reset token
+  const resetToken = uuid.v4();
+  // Set token expiry
+  const expiry = Date.now() + parseInt(process.env.expiryTime);
+
+  // Save the token
+  const reset = await ResetToken.create({ email, resetToken, expiry });
+
+  if (!reset._doc._id) {
+    throw new CustomAPIError("Server error try after some time");
+  }
+
+  // Send the mail
+  await sendEmailForResetPassword({
+    email,
+    resetLink:
+      process.env.resetURL +
+      `/auth/reset-password?email=${email}&resetToken=${resetToken}`,
+  });
+
+  // Send confirmation
+  res
+    .status(StatusCodes.OK)
+    .json({ msg: "Password reset link sent successfully", acknowledged: true });
+};
+
+//                                  Function to Reset Password
+
+const resetPassword = async (req, res) => {
+  // Get new Password
+  const password = req.body.password;
+
+  // Get email and reset token
+  const { email, resetToken } = req.query;
+
+  if (!email || !resetToken) {
+    throw BadRequestError("Email or reset token cannot be empty");
+  }
+
+  // Check if reset token is present or not
+  const reset = await ResetToken.findOne(
+    { email, resetToken },
+    projectionForResetToken
+  );
+
+  if (!reset) {
+    throw new NotFoundError("Invalid Reset Token");
+  }
+
+  if (reset.expiry < Date.now()) {
+    await ResetToken.deleteMany({ email }); // Delete the expired tokens
+
+    throw new BadRequestError("Token has Expired");
+  }
+
+  // Find the employee
+  const user = await User.findOne({ email }, projectionForUserToGetId);
+
+  // Change employee's password
+  await user.changePassword(password);
+
+  // Delete old session of the user containing old password, (refresh token)
+  await Session.deleteMany({ empId: user._id });
+
+  // Delete all reset token for this user
+  await ResetToken.deleteMany({ email });
+  /* We are doing this, in case a user generates the request for change password
+     but in future does not change it and the time expired. So whenever he changes
+     the password in future then all reset's should be distroyed at that time */
+
+  // Send confirmation
+  res
+    .status(StatusCodes.OK)
+    .json({ msg: "Password changed successfully", acknowledged: true });
+};
+
+//                                  Function to Fetch the details of the Logged In Employee
 
 const getDetailsAboutMe = async (req, res) => {
   // Get the Employee
@@ -212,4 +306,6 @@ module.exports = {
   logout,
   refresh,
   getDetailsAboutMe,
+  forgotPassword,
+  resetPassword,
 };

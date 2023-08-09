@@ -61,6 +61,9 @@ const userSchema = new mongoose.Schema(
 
 userSchema.pre("save", async function () {
   // Generates a password for the Employee and saves it
+
+  if (this.password) return; // To check if password is updated, then we do not generate password
+
   const pass = generatePass.generate({
     length: 8,
     numbers: true,
@@ -114,12 +117,25 @@ userSchema.methods.createRefreshToken = async function () {
   );
 };
 
-//                            Functions to compare Password during Login
+//                            Function to compare Password during Login
 
 userSchema.methods.comparePassword = async function (password, formPassword) {
   const passMatch = await bcrypt.compare(formPassword, password); // 1st input to be always the password
 
   return passMatch;
+};
+
+//                            Function to change Password
+
+userSchema.methods.changePassword = async function (password) {
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt); // generate hash for new password
+
+  this.password = hashedPassword;
+
+  this.save(); // save password
+
+  return;
 };
 
 module.exports = mongoose.model("User", userSchema);
